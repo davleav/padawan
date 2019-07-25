@@ -3,6 +3,7 @@ import { Mongo } from 'meteor/mongo';
 import { Class, Enum } from 'meteor/jagi:astronomy';
 import { User } from '../users/users.js';
 import { Email } from 'meteor/email';
+import { Defaults } from '/imports/startup/both/defaults.js';
 
 let UserNotify = Class.create({
     name: "UserNotify",
@@ -29,6 +30,11 @@ let UserNotify = Class.create({
             default: ''
         },
         body: {
+            type: String,
+            default: ''
+        },
+        // link had to be added here in order for it to work
+        link: {
             type: String,
             default: ''
         },
@@ -95,12 +101,23 @@ let UserNotify = Class.create({
                     let u = User.findOne( {_id:note.userId} );
                     if (u) {
                         let addr = u.emails[0].address;
-                        Email.send({
-                            to: addr,
-                            from: "wayne@paladinarcher.com",
-                            subject: "Developer Level Notification - "+note.title,
-                            text: note.body
-                        });
+                        if(u.MyProfile.emailNotifications){
+                            // SSR.compileTemplate('htmlEmail', Assets.getText('html-email.html'));
+                            //     let emailData = {
+                            //         text: note.body,
+                            //         link: note.link,
+                            //     };
+
+                            Email.send({
+                                to: addr,
+                                from: Defaults.supportEmail,
+                                subject: "Developer Level Notification - "+note.title,
+                                //html: SSR.render('htmlEmail', emailData),
+                                text: note.body + '\n\n'+note.link+'\n\n'
+                                //html: '<a href="google.com">Link to Page</a>'
+
+                            });
+                        }
                     }
                 }
             }

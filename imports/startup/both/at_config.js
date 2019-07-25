@@ -22,7 +22,7 @@ function myPreSubmitFunc()  { console.log("Pre:  ", arguments); }
 
 function myPostSubmitFunc(userId, info) {
     Accounts.emailTemplates.siteName = "DeveloperLevel";
-    Accounts.emailTemplates.from     = "DeveloperLevel <wayne@paladinarcher.com>";
+    Accounts.emailTemplates.from     = "DeveloperLevel <"+Defaults.supportEmail+">";
 
     Accounts.emailTemplates.verifyEmail = {
         subject() {
@@ -69,8 +69,8 @@ AccountsTemplates.configure({
 
 
     // Privacy Policy and Terms of Use
-    privacyUrl: 'privacy',
-    termsUrl: 'terms-of-use',
+    // privacyUrl: 'privacy',
+    // termsUrl: 'terms-of-use',
 
     // Redirects
     homeRoutePath: '/',
@@ -126,9 +126,18 @@ AccountsTemplates.configureRoute('resetPwd', {
 
 AccountsTemplates.addFields([{
     _id: "first_name",
+    class: "names",
     type: "text",
     required: true,
     displayName: "First Name",
+    // options: {
+    //     startRow: true
+    // },
+    // autoform: {
+    //     afFieldInput: {
+    //       class: 'custom'
+    //     },
+    // },
     func: function(value) {
         //if(Meteor.isClient) {
             console.log("Firstname validation: ", value);
@@ -140,13 +149,44 @@ AccountsTemplates.addFields([{
     type: "text",
     required: true,
     displayName: "Last Name",
+    // options: {
+    //     endRow: true,
+    //     afFieldInput: {
+    //         class: 'custom'
+    //       },
+    // },
+    // autoform: {
+    //     afFieldInput: {
+    //       class: 'custom'
+    //     },
+    // },
     func: function(value) {
         //if(Meteor.isClient) {
             console.log("Lastname validation: ", value);
 
         //}
         return false;
-    }},{
+    }},
+    {
+     _id: "access_code",
+    type: "text",
+    required: true,
+    displayName: "Access Code",
+    func: function(value) {
+        let padl = /PADL/;
+        isPadl = value.search(padl);
+        if (Meteor.isClient){
+            if (isPadl !== -1) {
+                return false;
+            }
+            return true;
+        }
+    },
+    errStr: 'Incorrect Access Code',
+    negativeValidation: true,
+    negativeFeedback: true,
+    },
+    {
     _id: "gender",
     type: "select",
     required: true,
@@ -162,6 +202,10 @@ AccountsTemplates.addFields([{
         },
     ],
 }]);
+
+
+AccountsTemplates.removeField('gender');
+
 if(Meteor.isServer) {
     Accounts.onCreateUser((options, user) => {
         user.slug = options.email;
@@ -177,7 +221,8 @@ if(Meteor.isServer) {
                     TF: {},
                     JP: {}
                 },
-                AnsweredQuestions: []
+                AnsweredQuestions: [],
+				AnsweredQnaireQuestions: []
             },
             birthDate: undefined,
             age: undefined
@@ -214,18 +259,17 @@ if(Meteor.isServer) {
 			return false;
 		}
 
-        if ("undefined" !== typeof attempt.methodArguments[0].resume) {
-            //this isn't a new login, just resuming after page reload or similar
-            return true;
-        }
 		// search through the emails, and see if it matches the email loging in with
-		let loginEmail = attempt.user.emails.find( (element) => {
-			return element.address.toLowerCase() === attempt.methodArguments[0].user.email.toLowerCase();
-		});
-		if (loginEmail.verified) {
-			return true;
-		} else {
-			throw new Meteor.Error('email-not-verified', 'Please verify your email before logging in');
-		}
+		//let loginEmail = attempt.user.emails.find( (element) => {
+		//	return element.address.toLowerCase() === attempt.methodArguments[0].user.email.toLowerCase();
+		//});
+        //if (loginEmail) {
+        //    return true;
+        //} else {
+        //    throw new Meteor.Error('Email not found', 'Please enter a valid email');
+        //}
+        return true;
 	});
+
+
 }

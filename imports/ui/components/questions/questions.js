@@ -26,17 +26,7 @@ Template.questions.onCreated(function () {
 
 Template.questions.helpers({
     questions() {
-        let u = User.findOne({_id:Template.instance().userId});
-        let useg = u.MyProfile.segments;
-        let conditions = [
-            {segments: {$exists:false}},
-            {segments: {$eq:[]}}
-        ];
-        if (useg) {
-            conditions.push({segments: {$in:useg}});
-        }
-        if (!u) return [];
-        return Question.find( {$or: conditions} );
+        return Question.find( );
     },
     reversed(index) {
         return index % 2;
@@ -45,14 +35,30 @@ Template.questions.helpers({
         let u = User.findOne({_id:Template.instance().userId});
         if (!u) return -1;
         let rmn = Math.max(0, (minQuestionsAnswered - u.MyProfile.UserType.AnsweredQuestions.length));
-        //let rmn = 0;
         return rmn;
     },
-    isRemainingGreaterThan(num) {
+	remainingTotalQCount() {
         let u = User.findOne({_id:Template.instance().userId});
-        if (!u) return true;
-        let rmn = Math.max(0, (minQuestionsAnswered - u.MyProfile.UserType.AnsweredQuestions.length));
-        return rmn > num;
+        if (!u) return -1;
+		let total = 1; //for some reason if this is a negative number the submit button won't appear
+        Meteor.call('question.countQuestions', u._id, (error, result) => {
+            if (error) {
+                //console.log("EEERRR0r: ", error);
+				return -1
+            } else {
+                //success
+        		total = Math.max(0, (result - u.MyProfile.UserType.AnsweredQuestions.length));
+				return total;
+            }
+        });
+		return total;
+	},
+    isRemainingGreaterThan(num) {
+    let userId = {_id:Template.instance().userId};
+    let u = User.findOne(userId);
+    if (!u) return true;
+    let rmn = Math.max(0, (minQuestionsAnswered - u.MyProfile.UserType.AnsweredQuestions.length));
+    return rmn > num;
     },
     getTemplate() { //console.log(this.index, arguments, this);
         return (this.index % 2) ? Template.questionTemplate : Template.questionTemplateReversed;
@@ -60,8 +66,7 @@ Template.questions.helpers({
     answeredQuestionsLength() {
         let u = User.findOne({_id:Template.instance().userId});
         let length = u.MyProfile.UserType.AnsweredQuestions.length;
-        //console.log("answeredQuestionsLengthhhhhhhhh", length);
-        return length
+        return length;
     },
     totalQuestions() {
         let u = User.findOne({_id:Template.instance().userId});
@@ -81,6 +86,25 @@ Template.questions.helpers({
             }
         });
         return total;
+    },
+    currentResultsTrue(){
+        let u = User.findOne({_id:Template.instance().userId});
+        let length = u.MyProfile.UserType.AnsweredQuestions.length;
+        return length >= minQuestionsAnswered && length < 122;
+    },
+    finalResultsTrue(){
+        let u = User.findOne({_id:Template.instance().userId});
+        let length = u.MyProfile.UserType.AnsweredQuestions.length;
+        return length >= 122;
+    },
+    contextMenuGone(){
+        event.preventDefault();
+        let menu = $('#context-menu-div');
+        if (menu.css('display') == 'block') {
+            return 'none';
+        } else {
+            return 'block';
+        }
     }
 });
 
@@ -96,7 +120,10 @@ Template.questions.events({
             'value':parent.data('value'),
             'isReversed':!!parent.data('reversed')
         };
-        console.log(values);
+
+        let apple = 42
+        console.log('values: ', values);
+        console.log('~apple + 1: ', ~apple + 1);
 
         Meteor.call('question.answer', values.questionId, values.value, values.isReversed, (error) => {
             if (error) {
@@ -108,8 +135,19 @@ Template.questions.events({
                 }
             }
         });
+    },
+    'click a#nav-results'(event, instance) {
+        event.preventDefault();
+        FlowRouter.go('/results');
+    },
+    // one submit button to rule them all submit all answers
+    'click button#submitAll'(event, instance){
+        event.preventDefault();
+        let btn = $('button.answer-button');
+        btn.click();
     }
 });
+
 Template.question.helpers({
     getReadingsAsJSON(question) {
         return JSON.stringify(question.Readings);
@@ -117,6 +155,7 @@ Template.question.helpers({
 });
 Template.question.onRendered(function() {
     console.log("onRendered", this);
+    let hidebtn = $('button.answer-button');
     let updateValue = function(elem, value) {
         let parent = $(elem).data('value', value);
         parent.find('div.left-option span.percent').html(Math.abs(Math.round(value) - 50)+"%");
@@ -132,7 +171,7 @@ Template.question.onRendered(function() {
         $.each(readings, function (i, reading) {
             if((value < 0 && reading.Rank <= value && reading.Rank > curMax) || (value > 0 && reading.Rank >= value && reading.Rank < curMax)) {
                 index = i;
-                curMax = reading.Rank;
+                curMax = reading.Rank
             }
         });
         if(index < 0) { return; }
@@ -142,14 +181,36 @@ Template.question.onRendered(function() {
         let m;
         m = $(elem).css('background-color').replace(/^rgba?\(|\s+|\)$/g,'').split(',');
         let btn = $(elem).parents('div.answer-question').find('button.answer-button');
+        let submit = $('button#submitAll');
         let reading = $(elem).parents('div.answer-question').find('div.reading');
         reading.css('visibility', 'visible');
         btn.css('visibility','visible');
+        submit.show();
+        let remainingQs = Number(document.getElementById('remainingQs').innerHTML);
+        if (remainingQs > 1) {
+            btn[0].innerHTML = "Continue";
+        } else {
+            if (remainingQs <= 0) {
+                btn.css('visibility', 'hidden');
+                submit.hide();
+            } else {
+                btn[0].innerHTML = "Submit Answers";
+            }
+        }
+        // Hides the submit all button unless all Qs are answered.
+        hidebtn.each(function(i){
+           if(hidebtn[i].style.visibility == 'hidden'){
+               submit.hide();
+           }
+        })
+
         if(value > 0.5) {
             $(elem).css('color','white');
         } else if(value == 0.5) {
             $(elem).css('color','Grey');
             btn.css('visibility','hidden');
+            // when Q's are unansewered submit all button hides
+            submit.hide();
             reading.css('visibility','hidden');
             value = 0.1;
         } else {

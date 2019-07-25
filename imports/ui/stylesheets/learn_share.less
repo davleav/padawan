@@ -27,3 +27,127 @@
     color: darkslategray;
     cursor: pointer;
 }
+
+#timerbtn {
+    width: 100%;
+}
+
+.overtimer {
+    background: orangered;
+}
+
+.presenterTimer {
+    background: transparent;
+    color: #333;
+    font-size: 20px;
+}
+
+.text-sm {
+    font-size: 10px;
+}
+
+.presenterKey {
+
+    .countdownTimer {
+        margin: 20px 0;
+        font-size: 18px;
+
+        .startSession {
+            display: inline;
+
+            #player-control {
+                margin-top: -5px;
+                display: none;
+            }
+
+            .control-group {
+                display: inline;
+
+                #session-length {
+                    width: 20%;
+                    display: inline-block;             
+                    padding: 6px;
+                    margin-left: 10px;
+                }
+
+                .btn-spacing {
+                    margin-top: -5px;
+                    margin-left: 5px;
+                }
+                
+                #playtimerbtn {
+                    display: none;
+                }
+            }
+        }
+    }
+    
+    .allottedTimers {
+        text-align: right;
+    }
+
+} // end of presnterKey
+
+.presenter-timers {
+    //display: none;
+    
+    #pausePTimer{
+        display: none;
+        margin-bottom: 10px;
+    }
+    #playPTimer{
+        display: none;
+        width: 45%;
+        margin-right: 2.5%;
+        margin-bottom: 10px;
+    }
+    #resetPTimer{
+        display: none;
+        width: 45%;
+        margin-left: 2.5%;
+        margin-bottom: 10px;
+    }
+    
+} // end presenter-timer
+
+@media screen and (max-width: 1200px)
+{
+    .presenterKey .countdownTimer .startSession {
+        display: inline-block;
+    }
+}
+
+@media screen and (max-width: 767px)
+{
+    .presenterKey .countdownTimer .startSession {
+        display: inline;
+    }
+}
+
+.teamInfo {
+    position: relative;
+
+    #editTeam {
+        font-size: 10px;
+        position: absolute;
+        margin: 10px 0 0 5px;
+        color: #4f79bb;
+    } // end of editTeam
+        
+}// end of teamInfo
+
+
+
+// @media only screen and (min-width: 767px) {
+
+//     .teamInfo {
+    
+//         #editTeam {
+            
+//             margin: 70px 0 0 5px;
+            
+//         } // end of editTeam
+
+//     }// end of teamInfo
+
+// }// end of media query 767px

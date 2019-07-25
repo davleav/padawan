@@ -1,10 +1,11 @@
-import { Class } from 'meteor/jagi:astronomy';
+import { Class, Union, Enum} from 'meteor/jagi:astronomy';
 import { check } from 'meteor/check';
 import { MyersBriggsCategory, Question } from '../questions/questions.js';
 import { Category, CategoryManager } from '../categories/categories.js';
 import { Defaults } from '../../startup/both/defaults.js';
 import { Team } from '../teams/teams.js';
 import { UserSegment } from '../user_segments/user_segments.js';
+
 
 const MyersBriggsBit = Class.create({
     name: 'MyersBriggsBit',
@@ -92,6 +93,29 @@ const MyersBriggs = Class.create({
         }
     }
 });
+// QQMixedType was used when qnaires were put in Users.MyProfile.UserType
+const QQMixedType = Union.create({
+    name: 'QQMixedType',
+    types: [String, Number]
+})
+// QnaireAnswer was used when qnaires were put in Users.MyProfile.UserType
+const QnaireAnswer = Class.create({
+	name: 'QnaireAnswer',
+	fields: {
+		label: {
+			type: String,
+			default: ''
+		},
+		question: {
+			type: String,
+			default: 'No question'
+		},
+		answers: {
+			type: QQMixedType,
+			default: ['No', ' answers']
+		}
+	}
+});
 const Answer = Class.create({
     name: 'Answer',
     fields: {
@@ -130,6 +154,30 @@ const Answer = Class.create({
         }
     }
 });
+// UserQnaire was used when qnaires were put in Users.MyProfile.UserType
+const UserQnaire = Class.create({
+	name: 'UserQnaire',
+	fields: {
+		QnaireId: {
+			type: String,
+			default: "-1"
+		},
+		QnaireAnswers: {
+			type: [QnaireAnswer],
+			default: []
+		}
+	},
+    helpers: {
+        setAnswer(myLabel, myQuestion, myAnswer) {
+			function eqLabel(element) {
+				return element.label == myLabel;
+			}
+			qnAnIndex = this.QnairAnswers.findIndex(eqLabel);
+			this.QnairAnswers[qnAnIndex].question = myQuestion; 
+			//this.QnairAnswers[qnAnIndex].answer = myAnswer; 
+        }
+	}
+});
 const UserType = Class.create({
     name: 'UserType',
     fields: {
@@ -144,7 +192,12 @@ const UserType = Class.create({
         TotalQuestions: {
             type: Number,
             default:0
-        }
+        },
+		// AnsweredQnaireQuestions was used when qnaires were put in Users.MyProfile.UserType
+		AnsweredQnaireQuestions: {
+            type: [UserQnaire],
+            default: function() { return []; }
+		}
     },
     helpers: {
         getAnsweredQuestionsIDs() {
@@ -194,6 +247,15 @@ const UserType = Class.create({
             //this.Personality.removeByCategory(answer.Category, answer.Value);
             console.log("User Answer Count: "+before+" => "+this.AnsweredQuestions.length);
         },
+		getQnaire(qnid) {
+			thisQn = {};
+			this.AnsweredQnaireQuestions.forEach(function (value, index) {
+				if (value.QnaireId == qnid) {
+					thisQn = value;
+				}
+			});
+			return thisQn;
+		},
         getAnswerIndexForQuestionID(questionId) {
             for(let i = 0; i < this.AnsweredQuestions.length; i++) {
                 if(this.AnsweredQuestions[i].QuestionID == questionId) { return i; }
@@ -240,30 +302,14 @@ const DashboardPane = Class.create({
 
 const Profile = Class.create({
     name: 'Profile',
+	collection: new Mongo.Collection('profile'),
     fields: {
         firstName: {
             type: String,
-            validators: [{
-              type: 'minLength',
-              param: 2
-            }]
         },
         lastName: {
             type: String,
-            validators: [{
-              type: 'minLength',
-              param: 2
-            }]
         },
-        /*
-        email: {
-          type: String,
-          validators: [{
-            type: 'minLength',
-            param: 5
-          }]
-        },
-        */
         UserType: {
             type: UserType,
             default: function () { return new UserType(); }
@@ -292,8 +338,13 @@ const Profile = Class.create({
         },
         emailNotifications: {
           type: Boolean,
-          default: false
-        }
+          default: true
+        },
+		// QnaireResponses holds QRespondent _id's 
+		QnaireResponses: {
+            type: [String],
+            default: []
+		}
     },
     helpers: {
         calculateAge() {
@@ -309,6 +360,36 @@ const Profile = Class.create({
             return fullName;
         }
     },
+	meteorMethods: {
+		addQnaireResponse(newRespId) {
+			let respExists = false;
+			this.QnaireResponses.forEach(function(element) {
+				if (newRespId == element) {
+					respExists = true;
+				}
+			});
+			if (!respExists) {
+				let userId = Meteor.userId();
+				let u = User.findOne({_id: userId});
+				Meteor.users.update({_id: userId}, {$push: {"MyProfile.QnaireResponses": newRespId}});
+			}
+			console.log("newRespId: ", newRespId);
+		},
+//		removeQnaireResponse(respId) {
+//			console.log("1");
+//			let respExists = false;
+//			this.QnaireResponses.forEach(function(element) {
+//				if (newRespId == element) {
+//					respExists = true;
+//				}
+//			});
+//			if (respExists) {
+//				let userId = Meteor.userId();
+//				let u = User.findOne({_id: userId});
+//				Meteor.users.update({_id: userId}, {$pull: {"MyProfile.QnaireResponses": respId}});
+//			}
+//		}
+	}
 });
 
 const User = Class.create({
@@ -337,7 +418,9 @@ const User = Class.create({
     },
     events: {
         afterInit(e) {
-            e.target.MyProfile.calculateAge();
+            if(e.target.MyProfile){
+                e.target.MyProfile.calculateAge();
+            }
         },
         beforeSave(e) {
             if (e.currentTarget.MyProfile.Categories.length() === 0) {
@@ -381,21 +464,19 @@ const User = Class.create({
             if ("undefined" === typeof uprofile.segments) {
                 uprofile.segments = [];
             }
+            if ("undefined" === typeof uprofile.emailNotifications) {
+                uprofile.emailNotifications = false;
+            }
             check(uprofile.firstName, String);
             check(uprofile.lastName, String);
-            //check(uprofile.email, String);
-            check(uprofile.gender, Boolean);
 
             this.MyProfile.firstName = uprofile.firstName;
             this.MyProfile.lastName = uprofile.lastName;
-            //this.MyProfile.email = uprofile.email;
-            this.MyProfile.gender = uprofile.gender;
-            console.log("888888",uprofile.segments);
             this.MyProfile.segments = uprofile.segments;
+            this.MyProfile.emailNotifications = uprofile.emailNotifications;
             if ("" !== uprofile.birthDate) {
                 this.MyProfile.birthDate = new Date(uprofile.birthDate);
             }
-            console.log(this);
             return this.save();
         },
         addRole(role) {
@@ -409,13 +490,22 @@ const User = Class.create({
             if (Roles.userIsInRole(Meteor.userId(), 'admin', Roles.GLOBAL_GROUP)) {
                 Roles.removeUsersFromRoles(this._id, role, Roles.GLOBAL_GROUP);
             }
-        }
-        /*,
-        setEmail(newEmail) {
-            console.log("entered setEmail. newEmail: ", newEmail);
-            this.emails[0].address = newEmail;
-            console.log("this.emails[0].address: ", this.emails[0].address, this);
-        }*/
+        },
+		removeQnaireResponse(respId) {
+			console.log("1111111111111111");
+			let respExists = false;
+			this.MyProfile.QnaireResponses.forEach(function(element) {
+				if (newRespId == element) {
+					respExists = true;
+				}
+			});
+			if (respExists) {
+				let userId = Meteor.userId();
+				let u = User.findOne({_id: userId});
+				Meteor.users.MyProfile.update({_id: userId}, {$pull: {"MyProfile.QnaireResponses": respId}});
+			}
+		}
+		
     },
     indexes: {
     },
@@ -435,4 +525,4 @@ if (Meteor.isServer) {
   });
 }
 
-export { User, Profile, UserType, MyersBriggs, Answer };
+export { User, Profile, UserType, MyersBriggs, Answer, QnaireAnswer };

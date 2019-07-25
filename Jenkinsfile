@@ -5,17 +5,12 @@ pipeline {
             filename "Dockerfile-jenkins-build"
             args "--entrypoint=''"
         }
-        /*
-        docker {
-            image 'golden/meteor-dev'
-            args '-e SRC_DIR=/var/jenkins_home/workspace/padawan-ci-beta'
-        }
-        */
     }
     environment {
         LC_ALL='en_US.UTF-8'
         LANG='en_US.UTF-8'
         METEOR_ALLOW_SUPERUSER=true
+        NODE_ENV='development'
     }
     stages {
         stage('Unit Tests') {
@@ -38,12 +33,25 @@ pipeline {
                     LOGFILE=meteor_startup.log
                     STR_SUCCESS="Started your app"
                     STR_FAILURE="Can't start"
+                    STR_FAILURE2="Your application has errors"
+                    STR_FAILURE3="Waiting for file change"
                     TIMEOUT=600
                     RETRY_SEC=10
                     ELAPSED_SEC=0
-                    until [$ELAPSED_SEC -ge $TIMEOUT]; do
+                    until [ "$ELAPSED_SEC" -ge "$TIMEOUT" ]; do
                     	if grep -q "$STR_FAILURE" $LOGFILE; then
                     		echo "failed to start"
+                            cat $LOGFILE
+                    		exit 1
+                    	fi
+                        if grep -q "$STR_FAILURE2" $LOGFILE; then
+                    		echo "failed to start"
+                            cat $LOGFILE
+                    		exit 1
+                    	fi
+                        if grep -q "$STR_FAILURE3" $LOGFILE; then
+                    		echo "failed to start"
+                            cat $LOGFILE
                     		exit 1
                     	fi
                     	if grep -q "$STR_SUCCESS" $LOGFILE; then
@@ -71,8 +79,7 @@ pipeline {
             steps {
                 echo 'Deploying... '
                 sh "ls -ltrh /tmp"
-                //sh "scp -o StrictHostKeyChecking=no -i /home/.ssh/rigel-alpha.pem /tmp/${env.BUILD_ID}.tar.gz ec2-user@18.218.174.233:/home/ec2-user/docker/staging/padawan.tar.gz"
-                sh "scp -o StrictHostKeyChecking=no -i /home/.ssh/rigel-alpha.pem `ls -1 /tmp/${env.JOB_NAME}*.tar.gz | head -n 1` ec2-user@18.218.174.233:/home/ec2-user/docker/production/padawan.tar.gz"
+                sh "scp -o StrictHostKeyChecking=no -i /home/.ssh/rigel-alpha.pem `ls -1 /tmp/${env.JOB_NAME}*.tar.gz | head -n 1` ec2-user@18.218.174.233:/home/ec2-user/docker/stage/padawan.tar.gz"
                 sh "ssh -o StrictHostKeyChecking=no -i /home/.ssh/rigel-alpha.pem ec2-user@18.218.174.233 /home/ec2-user/bin/production-rebuild-up.sh"
             }
         }
